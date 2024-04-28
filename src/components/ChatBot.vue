@@ -1,46 +1,138 @@
 <template>
-  <div class="chatbot-area">
-    <h1>Chatbot</h1>
-    <ul class="message-area">
-      <li v-for="(data, index) in streamingDataList" :key="index">
-       <p>{{data}}</p>
+  <div class="file-area">
+    <ul class="file-name-list">
+      <h3>ファイル一覧</h3>
+      <li v-for="(name, index) in fileList" :key="index" class="file-name">
+        <p>{{name}}</p>
       </li>
     </ul>
+    <div>
+      <h3>ファイルアップロード</h3>
+      <p class="file-description">テキストファイル (.txt), CSV ファイル (.csv), または JSON ファイル (.json) を選択してアップロードしてください。</p>
+      <input type="file" @change="handleFileChange" multiple accept=".txt,.csv,.json" />
+      <button @click="processFileData">アップロード</button>
+      <div v-if="fileData">
+        <h2>ファイル内容</h2>
+        <pre>{{ fileData }}</pre>
+    </div>
   </div>
-  <div class="input-box">
-    <input type="text" v-model="userInput" placeholder="Type your message..." />
-    <button @click="sendQuestion">Send</button>
+  </div>
+  <div class="chatbot-page">
+    <div class="chatbot-area">
+      <h1>Chatbot</h1>
+      <ul class="message-area">
+        <li v-for="(data, index) in streamingDataList" :key="index">
+        <p>{{data}}</p>
+        </li>
+        <li v-if="msg">{{msg}}</li>
+      </ul>
+    </div>
+    <div class="input-box">
+      <input type="text" v-model="userInput" placeholder="Type your message..." />
+      <a @click="sendQuestion" class="send-button">Send</a>
+    </div>
   </div>
 </template>
 
 <script>
+import axios from 'axios';
 
 export default {
   name: 'ChatBot',
   data() {
     return {
       msg: '',
-      streamingDataList: [],
+      streamingDataList: ['testtesttesttest', 'hogehogehogehogehogehogehogheohgeohgoehgoheo'],
+      fileList: ["test","---------"],
+      selectedFiles: [],
+      fileData: null,
+      userInput: ''
     };
   },
   methods: {
-    async sendQuestion() {
-      // EventSourceを作成し、サーバーからのイベントを購読する
-      this.eventSource = new EventSource('http://160.251.238.232:49500/lmm/streaming');
+    handleFileChange(event) {
+      const allowedExtensions = ['txt', 'csv', 'json'];
+      this.selectedFiles = event.target.files;
 
-      // イベントを購読し、streamingDataに追加する
-      this.eventSource.addEventListener('message', (event) => {
-        console.log('Received event:', event.data);
+      const validFiles = [];
+      for (const file of this.selectedFiles) {
+        const fileExtension = file.name.split('.').pop();
+        console.log('fileExtension', fileExtension)
+        if (allowedExtensions.includes(fileExtension)) {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) {
+        alert('サポートされているファイル形式 (.txt, .csv, .json) を選択してください。');
+        return;
+      }else {
+        this.selectedFiles = validFiles;
+      }
+
+    },
+  async processFileData() {
+    if (this.selectedFiles.length === 0) {
+      alert('ファイルを選択してください');
+      return;
+    }
+
+    const file = this.selectedFiles.shift();
+    console.log(this.selectedFiles);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post('http://160.251.238.232:49510/file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data', // Set the content type header for binary data
+        },
+      });
+      console.log('Response:', response.data);
+    } catch (error) {
+      console.error('ファイルの送信に失敗しました:', error);
+      alert('ファイルの送信に失敗しました。');
+    }
+    this.fileData = null;
+  },
+  async sendQuestion(){
+    if(!this.userInput){
+      return;
+    }
+    // Create an HTTP client using Axios
+    // const axios = require('axios');
+      this.streamingDataList.push(this.userInput);
+      this.userInput = null;
+      const params = {
+        text: this.userInput  // Replace 'this.userInput' to use the user input
+      };
+
+    try {
+      // Send the GET request to the server with query parameters
+      // const response = await axios.get('http://160.251.238.232:49510/lmm/question', { params: params });
+      const response = await axios.get('http://160.251.238.232:49510/lmm/streaming', { params: params });
+      console.log('Response:', response.data);
+
+      // Subscribe to the response stream
+      const eventSource = new EventSource(response.data.url);
+
+      // Handle incoming messages
+      eventSource.addEventListener('message', (event) => {
+        console.log('Received event:', event.data.message);
+        // this.msg += event.data.message;
         this.msg += event.data;
       });
 
-      // エラーが発生した場合の処理
-      this.eventSource.onerror = (event) => {
+      // Handle errors
+      eventSource.onerror = (event) => {
         console.error('EventSource error:', event);
         this.streamingDataList.push(this.msg);
-        this.eventSource.close();
+        eventSource.close();
       };
+    } catch (error) {
+      console.error('Error sending request:', error);
     }
+  }
   },
   mounted() {
     // EventSourceを作成し、サーバーからのイベントを購読する
@@ -59,12 +151,35 @@ export default {
 .chatbot {
   /* Add your styles for the chat window */
 }
+.chatbot-page {
+  width: 60%;
+  min-width: 280px;
+  margin: 0 5%;
+}
+.file-area {
+  max-width: 400px;
+  flex: 1 1 auto;
+  margin-bottom: 0;
+}
 
+.file-name-list {
+  height: 72%;
+}
+
+.file-name {
+  text-align: start;
+}
+.file-description {
+  margin: 4px 10px;
+}
 .message-area {
   height: calc(100vh - 200px);
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 0 0 8px 0;
+  background-color: #f0f0f0;
+  opacity: 0.6;
+  border-radius: 6px;
 }
 
 .message {
@@ -91,5 +206,23 @@ export default {
 .input-box input {
   flex: 1;
   padding: 10px;
+}
+a.send-button {
+	display: block;
+	text-align: center;
+	vertical-align: middle;
+	text-decoration: none;
+	width: 60px;
+	margin: 0 1px 0 12px;
+	padding: 1rem 4rem;
+	font-weight: bold;
+	border: 2px solid #27acd9;
+	color: #27acd9;
+	transition: 0.5s;
+  border-radius: 8px;
+}
+a.send-button:hover {
+	color: #fff;
+	background: #27acd9;
 }
 </style>
