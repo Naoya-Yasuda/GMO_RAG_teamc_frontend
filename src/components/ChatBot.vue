@@ -2,7 +2,9 @@
   <div class="chatbot-area">
     <h1>Chatbot</h1>
     <ul class="message-area">
-      <p>{{msg}}</p>
+      <li v-for="(data, index) in streamingDataList" :key="index">
+       <p>{{data}}</p>
+      </li>
     </ul>
   </div>
   <div class="input-box">
@@ -12,7 +14,6 @@
 </template>
 
 <script>
-import axios from 'axios';
 
 export default {
   name: 'ChatBot',
@@ -24,33 +25,25 @@ export default {
   },
   methods: {
     async sendQuestion() {
-      try {
-        const response = await axios.post('http://160.251.238.232:49500/lmm/question');
-        // 成功時の処理
-        console.log(response.data);
-        this.streamingData = response.data;
-      } catch (error) {
-        // エラー時の処理
-        console.error('------- error -------', error);
-        // this.streamingData.push('エラーが発生しました。');
-      }
+      // EventSourceを作成し、サーバーからのイベントを購読する
+      this.eventSource = new EventSource('http://160.251.238.232:49500/lmm/streaming');
+
+      // イベントを購読し、streamingDataに追加する
+      this.eventSource.addEventListener('message', (event) => {
+        console.log('Received event:', event.data);
+        this.msg += event.data;
+      });
+
+      // エラーが発生した場合の処理
+      this.eventSource.onerror = (event) => {
+        console.error('EventSource error:', event);
+        this.streamingDataList.push(this.msg);
+        this.eventSource.close();
+      };
     }
   },
   mounted() {
     // EventSourceを作成し、サーバーからのイベントを購読する
-    this.eventSource = new EventSource('http://160.251.238.232:49500/lmm/streaming');
-
-    // イベントを購読し、streamingDataに追加する
-    this.eventSource.addEventListener('message', (event) => {
-      console.log('Received event:', event.data);
-      this.msg += event.data;
-    });
-
-    // エラーが発生した場合の処理
-    this.eventSource.onerror = (event) => {
-      console.error('EventSource error:', event);
-        // this.streamingData.push(this.msg)
-    };
   },
   beforeUnmount() {
     // コンポーネントが破棄される前にEventSourceをクローズする
