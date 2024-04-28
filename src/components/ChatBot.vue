@@ -1,40 +1,38 @@
 <template>
-  <div class="chatbot">
+  <div class="chatbot-area">
     <h1>Chatbot</h1>
-    <ul class="messages">
-      <p>{{events}}</p>
+    <ul class="message-area">
+      <p>{{msg}}</p>
     </ul>
-    <div class="input-box">
-      <input type="text" v-model="userInput" placeholder="Type your message..." />
-      <button @click="sendMessage">Send</button>
-    </div>
+  </div>
+  <div class="input-box">
+    <input type="text" v-model="userInput" placeholder="Type your message..." />
+    <button @click="sendQuestion">Send</button>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
-// import { from, fromEvent } from 'rxjs';
-// import { switchMap, map } from 'rxjs/operators';
 
 export default {
-  name: 'HelloWorld',
+  name: 'ChatBot',
   data() {
     return {
-      streamingData: '',
-      events: [], // events配列をここで初期化
+      msg: '',
+      streamingDataList: [],
     };
   },
   methods: {
-    async getApi() {
+    async sendQuestion() {
       try {
-        const response = await axios.get('http://160.251.238.232:49500/lmm/streaming');
+        const response = await axios.post('http://160.251.238.232:49500/lmm/question');
         // 成功時の処理
         console.log(response.data);
         this.streamingData = response.data;
       } catch (error) {
         // エラー時の処理
         console.error('------- error -------', error);
-        this.streamingData = 'エラーが発生しました。';
+        // this.streamingData.push('エラーが発生しました。');
       }
     }
   },
@@ -42,15 +40,16 @@ export default {
     // EventSourceを作成し、サーバーからのイベントを購読する
     this.eventSource = new EventSource('http://160.251.238.232:49500/lmm/streaming');
 
-    // イベントを購読し、events配列に追加する
+    // イベントを購読し、streamingDataに追加する
     this.eventSource.addEventListener('message', (event) => {
       console.log('Received event:', event.data);
-      this.events.push(event.data);
+      this.msg += event.data;
     });
 
     // エラーが発生した場合の処理
     this.eventSource.onerror = (event) => {
       console.error('EventSource error:', event);
+        // this.streamingData.push(this.msg)
     };
   },
   beforeUnmount() {
@@ -68,7 +67,8 @@ export default {
   /* Add your styles for the chat window */
 }
 
-.messages {
+.message-area {
+  height: calc(100vh - 200px);
   list-style: none;
   padding: 0;
   margin: 0;
