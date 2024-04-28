@@ -22,9 +22,10 @@
       <h1>Chatbot</h1>
       <ul class="message-area">
         <li v-for="(data, index) in streamingDataList" :key="index">
-        <p>{{data}}</p>
+          <p :class='[data.isUser ? "balloon-right" : "balloon"]'>{{ data.text }}
+            <span v-for="(source, index) in data.sources" :key="index"><br>{{ (index+1) + '番目参照：' + source + ', '}}</span>
+          </p>
         </li>
-        <li v-if="msg">{{msg}}</li>
       </ul>
     </div>
     <div class="input-box">
@@ -42,7 +43,7 @@ export default {
   data() {
     return {
       msg: '',
-      streamingDataList: ['testtesttesttest', 'hogehogehogehogehogehogehogheohgeohgoehgoheo'],
+      streamingDataList: [{isUser:true, text:'testtes\nttesttest'}, {isUser:false, text:'hogehogehogehogehogehogehogheohgeohgoehgoheo', sources:['あいうえお','かきくけこ','さしすせそ']}],
       fileList: ["test","---------"],
       selectedFiles: [],
       fileData: null,
@@ -50,6 +51,9 @@ export default {
     };
   },
   methods: {
+    formattedMessage(text) {
+      return text.replace(/\n/g, '<br>');
+    },
     handleFileChange(event) {
       const allowedExtensions = ['txt', 'csv', 'json'];
       this.selectedFiles = event.target.files;
@@ -83,7 +87,7 @@ export default {
     formData.append('file', file);
 
     try {
-      const response = await axios.post('http://160.251.238.232:49510/file', formData, {
+      const response = await axios.post('https://160.251.238.232:49510/file', formData, {
         headers: {
           'Content-Type': 'multipart/form-data', // Set the content type header for binary data
         },
@@ -101,38 +105,44 @@ export default {
     }
     // Create an HTTP client using Axios
     // const axios = require('axios');
-      this.streamingDataList.push(this.userInput);
-      this.userInput = null;
+      this.streamingDataList.push({isUser:true, text:this.userInput});
       const params = {
-        text: this.userInput  // Replace 'this.userInput' to use the user input
+        question: this.userInput  // Replace 'this.userInput' to use the user input
       };
+      this.userInput = null;
 
     try {
       // Send the GET request to the server with query parameters
-      // const response = await axios.get('http://160.251.238.232:49510/lmm/question', { params: params });
-      const response = await axios.get('http://160.251.238.232:49510/lmm/streaming', { params: params });
+      const response = await axios.get('https://160.251.238.232:49510/lmm/question', { params: params, withCredentials: true });
+      // const response = await axios.get('https://160.251.238.232:49510/lmm/streaming', { params: params });
       console.log('Response:', response.data);
 
       // Subscribe to the response stream
-      const eventSource = new EventSource(response.data.url);
+      // const eventSource = new EventSource(response.data.url);
+      const eventSource = new EventSource('https://160.251.238.232:49510/lmm/question');
 
       // Handle incoming messages
       eventSource.addEventListener('message', (event) => {
         console.log('Received event:', event.data.message);
-        // this.msg += event.data.message;
-        this.msg += event.data;
+        this.msg += event.data.message;
+        // this.msg += event.data;
       });
-
+      let sources = []
       // Handle errors
       eventSource.onerror = (event) => {
         console.error('EventSource error:', event);
-        this.streamingDataList.push(this.msg);
+        for(let i; i<event.data.sources.length; i++){
+          sources.push(event.data.sources[i].slice(0, 5));
+        }
+        this.streamingDataList.push({isUser:false, text:this.msg, sources: this.sources});
         eventSource.close();
       };
     } catch (error) {
       console.error('Error sending request:', error);
     }
   }
+  },
+  computed: {
   },
   mounted() {
     // EventSourceを作成し、サーバーからのイベントを購読する
@@ -177,7 +187,6 @@ export default {
   list-style: none;
   padding: 0;
   margin: 0 0 8px 0;
-  background-color: #f0f0f0;
   opacity: 0.6;
   border-radius: 6px;
 }
@@ -224,5 +233,51 @@ a.send-button {
 a.send-button:hover {
 	color: #fff;
 	background: #27acd9;
+}
+
+.balloon{
+  text-align: left;
+  overflow-wrap: break-word;
+  background-color:#ddd;
+  border-radius:5px;
+  color:#222;
+  position:relative;
+  padding:8px 16px;
+  margin:20px;
+}
+.balloon::after{
+  border-top:solid 7px transparent;
+  border-bottom:solid 7px transparent;
+  border-right:solid 10px #ddd;
+  left:-10px;
+  content:"";
+  display:block;
+  height:0;
+  top:20%;
+  position:absolute;
+  width:0;
+}
+
+.balloon-right{
+  text-align: left;
+  overflow-wrap: break-word;
+  background-color:#ddd;
+  border-radius:5px;
+  color:#222;
+  position:relative;
+  padding:8px 16px;
+  margin:20px;
+}
+.balloon-right::after{
+  border-top:solid 7px transparent;
+  border-bottom:solid 7px transparent;
+  border-left:solid 10px #ddd;
+  right:-10px;
+  content:"";
+  display:block;
+  height:0;
+  top:20%;
+  position:absolute;
+  width:0;
 }
 </style>
